@@ -4,6 +4,7 @@
 
 ## Reference:
 
-https://www.nature.com/articles/s41467-023-37958-z#Fig5
+Ziegler, C., Martin, J., Sinner, C. et al. (2023). Latent generative landscapes as maps of functional diversity in protein sequence space. Nature Communications, 14(2222). https://doi.org/10.1038/s41467-023-37958-z
 
-https://arxiv.org/abs/1406.5298
+Kingma, D. P., & Maaløe, L. (2014). Semi-Supervised Learning with Deep Generative Models. Advances in Neural Information Processing Systems, 27, 3581-3589.
+

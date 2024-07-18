@@ -1,8 +1,8 @@
-#Classification and Anomaly Detection of SARS-CoV-2 Sequences with Deep Generative Models
+# Classification and Anomaly Detection of SARS-CoV-2 Sequences with Deep Generative Models
 
 
 
-##Reference:
+## Reference:
 
 https://www.nature.com/articles/s41467-023-37958-z#Fig5
 

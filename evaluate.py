@@ -1,10 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Apr  9 14:27:50 2024
-
-@author: mengqijia
-"""
 
 import torch.nn as nn
 import os
@@ -24,6 +17,9 @@ from vae import Semisupervised_VAE
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+
+##here I only use vae loss to check the training result
+
 def loss_fn(recon_x, x, mean, log_var):
     
         BCE = torch.nn.functional.binary_cross_entropy(
@@ -31,6 +27,7 @@ def loss_fn(recon_x, x, mean, log_var):
         KLD = -0.5 * torch.sum(1 + log_var - mean.pow(2) - log_var.exp())
 
         return (BCE + KLD)
+#same as training parameters
 
 encoder_size0=[1274*21,1274,200,15]
 latent_size=2
@@ -38,14 +35,11 @@ decoder_size0=[15,200,1274,1274*21]
 classification_dim=[1274*21,100,25]
 
 ##your data and data preparation
-#path = r'C:/Users/user/OneDrive - HKUST Connect/cleanproteindata/monthly-cleanpd-0114/2021-05.xlsx'
-path=r'monthly-cleanpd-0114/AllUnique_0114-(Corrected).xlsx'
+path=r'sequence_data.xlsx'
 
 
-dataset_oringal_initial=pd.read_excel(path)
-dataset_oringal=dataset_oringal_initial[dataset_oringal_initial['MonthIndex']<22]
+dataset_oringal=pd.read_excel(path)
 dataset_oringal0=dataset_oringal['mutation|insertion info']
-
 
 dataclass=dataset_oringal['class'].tolist()
 print(set(dataclass))
@@ -68,12 +62,6 @@ def mutation_matrix (data):
             aap = site[-1]
             mutation[pos][aa2idx[aap]] = 1
     return mutation 
-
-label_library=['20A/S:439K', '20B/S:626S', 'B.1.617.1(Kappa)',
-                '21C Epsilon', '20B/S:732A', 'B.1.351(Beta)', 'S:677H.Robin1', 
-                'B.1.1.7(Alpha)', '20A/S:98F', 'B.1.526(Iota)', 'S:677P.Pelican',
-                '20B/S:1122L', 'P.1(Gamma)', 'Original', '20C/S:80Y', '20A.EU2', 
-                'B.1.617.2(Delta)', 'C.37(Lambda)', '20E EU1', 'B.1.525(Eta)']
 
 
 label_library=[ 'B.1.617.1(Kappa)', '21C Epsilon', 
@@ -140,6 +128,7 @@ vae_model.eval()
 for param in vae_model.parameters():
     param.requires_grad = False
 
+##for input one seq:
 mutation_try='L18F;T20N;P26S;D138Y;R190S;K417T;E484K;N501Y;D614G;H655Y;L841F;T1027I;V1176F|""'
 
 
@@ -175,8 +164,7 @@ print("Indices of non-zero elements:", nonzero_indices/21,'value',recon_x[0][non
 print('------------------------------')
 print('number of the seqs',len(dataset_oringal0))
 
-
-
+##for amonly detection
 
 re_error=[]
 var0=[]
@@ -213,6 +201,7 @@ print('percentage:' ,selected_inex/len(dataset_oringal0))
 
 print('average error',sum(re_error)/len(re_error))
 
+##plot lantent space
 plt.scatter(z1,z2,s=0.1)
 plt.savefig('vaeall.png')
 plt.close()

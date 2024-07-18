@@ -22,7 +22,7 @@ import numpy as np
 ##check gpu
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-##random seed
+##add random seed
 #torch.backends.cudnn.deterministic = True
 #seed=1314
 #torch.manual_seed(seed)
@@ -92,7 +92,7 @@ def unlabel_vae_loss(recon_x,x,mean,log_var,outputlabel):
     
 
     
-##reshape it into a one-hot encoded tensor 
+## reshape it into a one-hot encoded tensor 
 def idx2onehot(idx, n):
     assert torch.max(idx).item() < n
 
@@ -108,13 +108,11 @@ def idx2onehot(idx, n):
 
 ##your data and data preparation
 
-path=r'monthly-cleanpd-0114/AllUnique_0114-(Corrected).xlsx'
+path=r'seqence_data.xlsx'
 
-dataset_oringal_initial=pd.read_excel(path)
-dataset_oringal=dataset_oringal_initial[dataset_oringal_initial['MonthIndex']<22]
+dataset_oringal=pd.read_excel(path)
 dataset_oringal0=dataset_oringal['mutation|insertion info']
-#dataset_oringal0=dataset_oringal['mutation']
-seq_class=dataset_oringal['class'].copy()
+seq_class=dataset_oringal['class'].copy()##sequence class
 
 
 ##splite into label and unlabel
@@ -127,7 +125,6 @@ selected_index = random.sample(range(n_sample), int(ratio * n_sample))
 
 for i in selected_index:
     seq_class.loc[i]='no_label'
-
 
 
 label_library= ['B.1.617.1(Kappa)', '21C Epsilon', 'BA.4&5', 'B.1.351(Beta)', 'B.1.1.7(Alpha)', 'BA.2.75',  'B.1.526(Iota)', 'P.1(Gamma)', 'Original',  '20A.EU2',  'B.1.617.2(Delta)', 'B.1.621(Mu)', 'C.37(Lambda)', 'BA.2', 'BA.2.12.1', 'BA.2.86', '21I Delta', 'BA.1', '20E EU1',  'XBB', 'B.1.525(Eta)']
@@ -157,26 +154,13 @@ def mutation_matrix (data):
     return mutation 
 
 
-    
-# def get_label(data, library):
-#     labeled_index = []
-#     n = len(data)
-#     for i in range(n):
-#         label = data[i]
-#         if label in library:
-#             labeled_index.append(library.index(label))
-#         else:
-#             labeled_index.append(False)
-                        
-#     return labeled_index
-
 def get_label(label,library=label_library):
 
     if label in library:
         labelseq=library.index(label)+1
         
     else:
-        labelseq=0
+        labelseq=0 ##set the label to 0 if the seq is unlabeled 
         
     return labelseq
 
@@ -199,25 +183,24 @@ class SequenceDataset(Dataset):
         return tensor,label
 
 
-
+##create dataset
 dataset=SequenceDataset(dataset_oringal0,num_seq=len(dataset_oringal0),label=seq_class)
 
-
+#for vae
 # vae = VAE(encoder_layer_sizes=encoder_size0,
 #         latent_size=latent_size,
 #         decoder_layer_sizes=decoder_size0).to(device)
 
+#for semi supervised vae
 model=Semisupervised_VAE(encoder_layer_sizes=encoder_size0,
                           latent_size=latent_size, decoder_layer_sizes=decoder_size0,
                           classify_layer=classification_dim).to(device)
 
-# Load the saved model parameters
+# Load the saved model parameters (for pre trained model only)
 #vae.load_state_dict(torch.load('vae_model0.pth'))
 model.load_state_dict(torch.load('vae_model_try.pth',map_location=device))
 
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-
-
 
 
 
@@ -232,11 +215,8 @@ val_size = int(validation_ratio * len(dataset))
 # Randomly split the dataset into training and validation sets
 train_dataset, val_dataset = torch.utils.data.random_split(dataset, [len(dataset) - val_size, val_size])
 
-
 data_loader_val = DataLoader(dataset=val_dataset, batch_size=batch_size0, shuffle=True)
 
-
-#data_loader = DataLoader(dataset=dataset, batch_size=batch_size0, shuffle=True)
 
 
 

@@ -34,7 +34,7 @@ latent_size=2
 decoder_size0=[15,200,1274,1274*21]
 classification_dim=[1274*21,100,25]
 
-##your data and data preparation
+##load your data here
 path=r'sequence_data.xlsx'
 
 

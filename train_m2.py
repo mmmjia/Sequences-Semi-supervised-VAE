@@ -12,7 +12,6 @@ from collections import defaultdict
 from torch.utils.data import Dataset
 import numpy as np
 import datetime
-now = datetime.datetime.now()
 
 ##check gpu
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -351,4 +350,5 @@ if __name__ == "__main__":
     plt.plot(np.log(logs['val_loss']))
     plt.title('loss')
     plt.savefig('loss_function')
+    now = datetime.datetime.now()
     print('train finished',now)

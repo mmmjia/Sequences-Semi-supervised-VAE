@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Sun Apr 28 12:21:55 2024
-
-@author: user
-"""
-
 from vae import Semisupervised_VAE
 import torch.nn as nn
 import random
@@ -175,9 +168,8 @@ if __name__ == "__main__":
     ##your data and data preparation
 
     path=r'monthly-cleanpd-0114/AllUnique_0114-(Corrected).xlsx'
-
     dataset_oringal_initial=pd.read_excel(path)
-    dataset_oringal=dataset_oringal_initial[dataset_oringal_initial['MonthIndex']<22]
+    dataset_oringal=dataset_oringal_initial[dataset_oringal_initial['MonthIndex']<22]##used for a trial, delete it when running 
     dataset_oringal0=dataset_oringal['mutation|insertion info']
     #dataset_oringal0=dataset_oringal['mutation']
     seq_class=dataset_oringal['class'].copy()

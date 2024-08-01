@@ -1,10 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Apr  9 14:27:50 2024
-
-@author: mengqijia
-"""
 
 import torch.nn as nn
 import os
@@ -33,12 +26,11 @@ def loss_fn(recon_x, x, mean, log_var):
 
 
 ##your data and data preparation
-#path = r'C:/Users/user/OneDrive - HKUST Connect/cleanproteindata/monthly-cleanpd-0114/2021-05.xlsx'
 path=r'monthly-cleanpd-0114/AllUnique_0114-(Corrected).xlsx'
 
 
 dataset_oringal_initial=pd.read_excel(path)
-dataset_oringal=dataset_oringal_initial[dataset_oringal_initial['MonthIndex']<22]
+dataset_oringal=dataset_oringal_initial[dataset_oringal_initial['MonthIndex']<22]##cutted for a trial run, delete it when running 
 dataset_oringal0=dataset_oringal['mutation|insertion info']
 
 

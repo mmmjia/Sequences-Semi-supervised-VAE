@@ -16,7 +16,7 @@ import datetime
 ##check gpu
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-##random seed
+##random seed for reproduce porpose 
 #torch.backends.cudnn.deterministic = True
 #seed=1314
 #torch.manual_seed(seed)
@@ -51,48 +51,33 @@ label_library= ['B.1.617.1(Kappa)', '21C Epsilon', 'BA.4&5', 'B.1.351(Beta)', 'B
 ##define loss function 
 
 
-def label_loss_fn(recon_x, x, mean, log_var,y):
+def log_gaussian(x,mu,log_var):
+    return torch.sum (-0.5*math.log(1*math.pi)-log_var/2-(x-mu)**2/2/torch.exp(log_var))
+
+def log_standard_gaussian(x):
+    return torch.sum(-0.5 * math.log(2 * math.pi) - x ** 2 / 2)
+
+
+def label_loss_fn(recon_x, x, z,mean, log_var,y):
     
         BCE = torch.nn.functional.binary_cross_entropy(
             recon_x, x.view(-1,1274*21), reduction='sum')
-        KLD = -0.5 * torch.sum(1 + log_var - mean.pow(2) - log_var.exp())
+        #KLD = -0.5 * torch.sum(1 + log_var - mean.pow(2) - log_var.exp())
+        
+        KLD=log_gaussian(z, mean, log_var)-log_standard_gaussian(z)
         
         priorlabel=torch.nn.functional.softmax(torch.ones_like(y),dim=0)
-        priorlabel.requires_grad = False
+        #priorlabel.requires_grad = False
         return (BCE + KLD) / x.size(0)+categorical_crossentropy(y, priorlabel)/x.size(0)
-
 
 
 def categorical_crossentropy(y,y_target):
     return -torch.sum(y*torch.log(y_target+1e-8))
 
-def cross_entropy_loss(y,y_target):
-    
-    criterion =  torch.nn.functional.binary_cross_entropy(y , y_target,reduction='sum')
-
-    return -criterion/y.size(0)
-         
-def unlabel_vae_loss(recon_x,x,mean,log_var,outputlabel):
-    
-    p=torch.zeros(classification_dim[-1])
-    p[0]=1
-
-    prior=torch.nn.functional.softmax(torch.ones_like(p),dim=0)
-    prior.requires_grad = False
-    cross_entropy0 = -torch.sum(p * torch.log(prior + 1e-8))
-    entropy=categorical_crossentropy(outputlabel, outputlabel)
-    
-    BCE = torch.sum(torch.nn.functional.binary_cross_entropy(
-        recon_x, x.view(-1,1274*21),reduction='none'),1)
-    KLD = -0.5 * torch.sum((1 + log_var - mean.pow(2) - log_var.exp()),1)
-    BCE=BCE.unsqueeze(1)
-    KLD=KLD.unsqueeze(1)
-    
-    labeled_loss=BCE+KLD+cross_entropy0
-    #outputlabel=torch.max(outputlabel,1).values
-
-
-    return torch.sum(outputlabel*labeled_loss)/x.size(0) + entropy/x.size(0)
+def cross_entropy_loss(y,y_target): ## cross entropy loss can be choose from the binary cross entropy and categorical entropy
+    #criterion =  torch.nn.functional.binary_cross_entropy(y , y_target,reduction='mean')
+    criterion =  -torch.sum(y_target*torch.log(y+1e-8),dim=1).mean()
+    return criterion
     
 
     
@@ -186,14 +171,12 @@ if __name__ == "__main__":
         seq_class.loc[i]='no_label'
 
 
-
-
     dataset=SequenceDataset(dataset_oringal0,num_seq=len(dataset_oringal0),label=seq_class)
 
 
     # vae = VAE(encoder_layer_sizes=encoder_size0,
     #         latent_size=latent_size,
-    #         decoder_layer_sizes=decoder_size0).to(device)
+    #         decoder_layer_sizes=decoder_size0).to(device) 
 
     model=Semisupervised_VAE(encoder_layer_sizes=encoder_size0,
                               latent_size=latent_size, decoder_layer_sizes=decoder_size0,
@@ -206,9 +189,6 @@ if __name__ == "__main__":
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
 
-
-
-
     ###split the data into train and validation
 
     validation_ratio = 0.1
@@ -219,11 +199,7 @@ if __name__ == "__main__":
 
     # Randomly split the dataset into training and validation sets
     train_dataset, val_dataset = torch.utils.data.random_split(dataset, [len(dataset) - val_size, val_size])
-
-
     data_loader_val = DataLoader(dataset=val_dataset, batch_size=batch_size0, shuffle=True)
-
-
     #data_loader = DataLoader(dataset=dataset, batch_size=batch_size0, shuffle=True)
 
 
@@ -241,7 +217,7 @@ if __name__ == "__main__":
             
             tracker_epoch = defaultdict(lambda: defaultdict(dict))
             
-            
+    
             for iteration, x in enumerate(data_loader):
                 
                 x,y=x            
@@ -252,28 +228,37 @@ if __name__ == "__main__":
                 
                 unlabeled_seq_index=torch.nonzero(y==0).view(-1).tolist()
                 
-                labeled_seq_onehot = idx2onehot(y[labeled_seq_index],n=classification_dim[-1])
+                labeled_seq_onehot = idx2onehot(y[labeled_seq_index]-1,n=classification_dim[-1])
                 
-                seq_onehot = idx2onehot(y,n=classification_dim[-1])
+                #seq_onehot = idx2onehot(y,n=classification_dim[-1])
                 
-                recon_x, mean, log_var, z ,newlabel= model(x,seq_onehot)
+                recon_x, mean, log_var, z ,newlabel= model(x[labeled_seq_index],labeled_seq_onehot)
                 
 
-
-                label_loss=label_loss_fn(recon_x[labeled_seq_index], x[labeled_seq_index],
-                                         mean[labeled_seq_index], log_var[labeled_seq_index],newlabel[labeled_seq_index])
+                label_loss=label_loss_fn(recon_x, x[labeled_seq_index],z,mean, log_var,newlabel)
+                
+                lnewlabel_all=torch.argmax(newlabel,1)
+                acc=torch.sum(lnewlabel_all==(y[labeled_seq_index]-1))/labeled_seq_onehot.shape[0]
                 
                 if len(unlabeled_seq_index)==0:
                     unlabel_loss=0
-                else:
-
-                    unlabel_loss=unlabel_vae_loss(recon_x[unlabeled_seq_index],x[unlabeled_seq_index],
-                                               mean[unlabeled_seq_index],log_var[unlabeled_seq_index],
-                                               newlabel[unlabeled_seq_index])
                 
-                classifify_loss=cross_entropy_loss(newlabel[labeled_seq_index],labeled_seq_onehot)
+                else:
+                    _,newlabel_ul=model.classifier(x[unlabeled_seq_index])
+                    #recon_x_ul, mean_ul, log_var_ul, z_ul ,newlabel_ul= model(x[unlabeled_seq_index],newlabel_ul)
+                    unlabel_loss=0
+                    for i in range (classification_dim[-1]):
+                        y_pesodu=torch.zeros_like(newlabel_ul)
+                        y_pesodu[:,i]=1
+                        y_pesodu=y_pesodu.to(device)
+                        recon_ux, umean,ulog_var, uz ,unewlabel= model(x[unlabeled_seq_index],y_pesodu)
+                        unlabel_loss_class=label_loss_fn(recon_ux, x[unlabeled_seq_index],uz,
+                                                     umean, ulog_var,unewlabel)*newlabel_ul[:,i]+newlabel_ul[:,i]*torch.log(newlabel_ul[:,i]+1e-10)
+                        unlabel_loss=unlabel_loss+unlabel_loss_class
+                
+                classifify_loss=cross_entropy_loss(newlabel,labeled_seq_onehot)
                 #loss = loss_fn(recon_x, x, mean, log_var)
-                loss=label_loss+unlabel_loss-alpha*classifify_loss
+                loss=label_loss+torch.mean(unlabel_loss)+alpha*classifify_loss
                 
 
                 
@@ -286,7 +271,7 @@ if __name__ == "__main__":
                 
 
                 if iteration % 200 == 0 or iteration == len(data_loader)-1:
-                    print('train:',epoch, iteration, len(data_loader)-1, loss.item())
+                    print('train:',epoch, iteration, len(data_loader)-1, loss.item(),'accuracy',acc.item())
 
             with torch.no_grad():
                 model.eval()        
@@ -300,30 +285,42 @@ if __name__ == "__main__":
                     labeled_seq_index_val=torch.nonzero(y_val).view(-1).tolist()
                     unlabeled_seq_index_val=torch.nonzero(y_val==0).view(-1).tolist()
      
-                    labeled_seq_onehot_val = idx2onehot(y_val[labeled_seq_index_val],n=classification_dim[-1])
+                    labeled_seq_onehot_val = idx2onehot(y_val[labeled_seq_index_val]-1,n=classification_dim[-1])
 
 
-                    recon_x_val, mean_val, log_var_val, z_val,newlabel_val = model(x_val,seq_onehot_val)
+                    recon_x_val, mean_val, log_var_val, z_val ,newlabel_val= model(x_val[labeled_seq_index_val],labeled_seq_onehot_val)
                     
-                    label_loss_val=label_loss_fn(recon_x_val[labeled_seq_index_val], x_val[labeled_seq_index_val],
-                                             mean_val[labeled_seq_index_val], log_var_val[labeled_seq_index_val],newlabel_val[labeled_seq_index_val])
+
+                    label_loss_val=label_loss_fn(recon_x_val, x_val[labeled_seq_index_val],z_val,mean_val, log_var_val,newlabel_val)
+                    
+                    lnewlabel_all_val=torch.argmax(newlabel_val,1)
+                    acc_val=torch.sum(lnewlabel_all_val==(y_val[labeled_seq_index_val]-1))/labeled_seq_onehot_val.shape[0]
                     
                     if len(unlabeled_seq_index_val)==0:
                         unlabel_loss_val=0
+                    
                     else:
-                        unlabel_loss_val=unlabel_vae_loss(recon_x_val[unlabeled_seq_index_val],x_val[unlabeled_seq_index_val],
-                                                   mean_val[unlabeled_seq_index_val],log_var_val[unlabeled_seq_index_val],
-                                                   newlabel_val[unlabeled_seq_index_val])
+                        _,newlabel_ul_val=model.classifier(x_val[unlabeled_seq_index_val])
+                        #recon_x_ul_val, mean_ul_val, log_var_ul_val, z_ul_val, newlabel_ul_val= model(x_val[unlabeled_seq_index_val],newlabel_ul_val)
+                        unlabel_loss_val=0
+                        for i in range (classification_dim[-1]):
+                            y_pesodu_val=torch.zeros_like(newlabel_ul_val)
+                            y_pesodu_val[:,i]=1
+                            y_pesodu_val=y_pesodu_val.to(device)
+                            recon_ux_val, umean_val,ulog_var_val, uz_val,unewlabel_val= model(x_val[unlabeled_seq_index_val],y_pesodu_val)
+                            unlabel_loss_class_val=label_loss_fn(recon_ux_val, x_val[unlabeled_seq_index_val],uz_val,
+                                                         umean_val, ulog_var_val,unewlabel_val)*newlabel_ul_val[:,i]+newlabel_ul_val[:,i]*torch.log(newlabel_ul_val[:,i]+1e-10)
+                            unlabel_loss_val=unlabel_loss_val+unlabel_loss_class_val
 
 
                     
-                    classifify_loss_val=cross_entropy_loss(newlabel_val[labeled_seq_index_val],labeled_seq_onehot_val)
+                    classifify_loss_val=cross_entropy_loss(newlabel_val,labeled_seq_onehot_val)
 
-                    loss_val=label_loss_val+unlabel_loss_val-alpha*classifify_loss_val
+                    loss_val=label_loss_val+torch.mean(unlabel_loss_val)+alpha*classifify_loss_val
                     #loss_val=loss_fn(recon_x_val,x_val,mean_val,log_var_val)
                     
                     if val_iter % 20 == 0 or val_iter == len(data_loader_val)-1:
-                        print('validation',epoch, val_iter, len(data_loader_val)-1, loss_val.item())
+                        print('validation',epoch, val_iter, len(data_loader_val)-1, loss_val.item(),'accuracy',acc_val)
                     
                     #logs['val_loss'].append(loss_val.item())
                     tracker_epoch['val']['loss'][val_iter]=loss_val.item()

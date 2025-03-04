@@ -1,6 +1,5 @@
 # Classification and Anomaly Detection of SARS-CoV-2 Sequences with Deep Generative Models
 
-Prepare your sequence data like: HAGI...HNT
 
 
 
